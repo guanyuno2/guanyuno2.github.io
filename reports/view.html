@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Báo cáo</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="wrap wide">
+  <nav class="bar">
+    <a href="./" class="back">← Tất cả báo cáo</a>
+    <span class="nav-pn"><a id="prev" hidden>‹ Bản trước</a><a id="next" hidden>Bản sau ›</a></span>
+  </nav>
+  <article id="doc" class="doc"><p class="mut">Đang tải…</p></article>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script>
+const NAMES = { tiktok: "TikTok", youtube: "YouTube", instagram: "Instagram" };
+const file = new URLSearchParams(location.search).get("f") || "";
+const doc = document.getElementById("doc");
+
+if (!/^[a-z0-9-]+\/[0-9-]+\.md$/.test(file)) {
+  doc.innerHTML = '<p>Thiếu hoặc sai tên báo cáo. <a href="./">Về danh sách</a>.</p>';
+} else {
+  Promise.all([
+    fetch(file, { cache: "no-store" }).then(r => { if (!r.ok) throw 0; return r.text(); }),
+    fetch("reports.json", { cache: "no-store" }).then(r => r.json()).catch(() => []),
+  ]).then(([md, list]) => {
+    doc.innerHTML = marked.parse(md);
+    // bảng rộng: bọc để cuộn ngang trên điện thoại; link ngoài mở tab mới
+    doc.querySelectorAll("table").forEach(t => { const w = document.createElement("div"); w.className = "tbl"; t.before(w); w.append(t); });
+    doc.querySelectorAll('a[href^="http"]').forEach(a => { a.target = "_blank"; a.rel = "noopener"; });
+    const me = list.find(r => r.file === file);
+    if (me) {
+      document.title = `${NAMES[me.platform] || me.platform} · ${me.date.split("-").reverse().join("/")}`;
+      const same = list.filter(r => r.platform === me.platform).sort((a, b) => a.date.localeCompare(b.date));
+      const i = same.findIndex(r => r.file === file);
+      const link = (id, r) => { if (r) { const a = document.getElementById(id); a.href = `view.html?f=${encodeURIComponent(r.file)}`; a.hidden = false; } };
+      link("prev", same[i - 1]); link("next", same[i + 1]);
+    }
+  }).catch(() => { doc.innerHTML = '<p>Không tải được báo cáo. <a href="./">Về danh sách</a>.</p>'; });
+}
+</script>
+</body>
+</html>

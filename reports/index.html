@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Báo cáo kênh</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="wrap">
+  <header class="top">
+    <h1>Báo cáo kênh</h1>
+    <p class="mut">The Gaming Vault · số liệu hiệu suất theo từng ngày</p>
+  </header>
+
+  <section id="latest" class="cards" aria-label="Bản mới nhất"></section>
+
+  <div class="tools">
+    <input id="q" type="search" placeholder="Tìm theo ngày (19/11, 2026-11), nền tảng…" autocomplete="off">
+    <div id="chips" class="chips" role="group" aria-label="Lọc nền tảng"></div>
+  </div>
+
+  <section id="list" aria-live="polite"></section>
+  <p id="empty" class="mut" hidden>Không có báo cáo nào khớp.</p>
+</main>
+<script>
+const NAMES = { tiktok: "TikTok", youtube: "YouTube", instagram: "Instagram" };
+const fmt = n => n == null ? "–" : Number(n).toLocaleString("vi-VN");
+const dmy = iso => { const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; };
+const params = new URLSearchParams(location.search);
+let filter = params.get("p") || "all";
+let all = [];
+
+function card(r) {
+  const s = r.summary || {};
+  return `<a class="card" href="view.html?f=${encodeURIComponent(r.file)}">
+    <span class="tag tag-${r.platform}">${NAMES[r.platform] || r.platform}</span>
+    <strong>Mới nhất · ${dmy(r.date)}</strong>
+    <span class="stats"><b>${fmt(s.followers)}</b> follower · <b>${fmt(s.videos)}</b> video · <b>${fmt(s.views)}</b> view</span>
+  </a>`;
+}
+
+function row(r) {
+  const s = r.summary || {};
+  return `<li><a href="view.html?f=${encodeURIComponent(r.file)}">
+    <span class="tag tag-${r.platform}">${NAMES[r.platform] || r.platform}</span>
+    <span class="d">${dmy(r.date)}</span>
+    <span class="stats mut">${fmt(s.followers)} follower · ${fmt(s.views)} view</span>
+  </a></li>`;
+}
+
+function render() {
+  const q = document.getElementById("q").value.trim().toLowerCase();
+  const items = all.filter(r =>
+    (filter === "all" || r.platform === filter) &&
+    (!q || [r.date, dmy(r.date), NAMES[r.platform] || r.platform, r.title || ""].join(" ").toLowerCase().includes(q))
+  );
+  const byMonth = {};
+  for (const r of items) (byMonth[r.date.slice(0, 7)] ||= []).push(r);
+  document.getElementById("list").innerHTML = Object.keys(byMonth).sort().reverse().map(m => {
+    const [y, mo] = m.split("-");
+    return `<h2>Tháng ${+mo}/${y}</h2><ul class="rows">${byMonth[m].map(row).join("")}</ul>`;
+  }).join("");
+  document.getElementById("empty").hidden = items.length > 0;
+  document.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", c.dataset.p === filter));
+}
+
+fetch("reports.json", { cache: "no-store" }).then(r => r.json()).then(data => {
+  all = data.sort((a, b) => b.date.localeCompare(a.date) || a.platform.localeCompare(b.platform));
+  const platforms = [...new Set(all.map(r => r.platform))];
+  document.getElementById("latest").innerHTML = platforms.map(p => card(all.find(r => r.platform === p))).join("");
+  document.getElementById("chips").innerHTML = ["all", ...platforms].map(p =>
+    `<button class="chip" data-p="${p}">${p === "all" ? "Tất cả" : NAMES[p] || p}</button>`).join("");
+  document.querySelectorAll(".chip").forEach(c => c.onclick = () => {
+    filter = c.dataset.p;
+    history.replaceState(null, "", filter === "all" ? location.pathname : `?p=${filter}`);
+    render();
+  });
+  document.getElementById("q").oninput = render;
+  render();
+}).catch(() => { document.getElementById("empty").hidden = false; document.getElementById("empty").textContent = "Không tải được danh sách báo cáo."; });
+
+addEventListener("keydown", e => {
+  if (e.key === "/" && document.activeElement.id !== "q") { e.preventDefault(); document.getElementById("q").focus(); }
+});
+</script>
+</body>
+</html>
